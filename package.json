@@ -1,0 +1,15 @@
+{
+  "name": "agentwall",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev:firewall": "cd packages/firewall && npm run dev",
+    "dev:dashboard": "cd apps/dashboard && npm run dev",
+    "dev:agent:normal": "cd packages/mock-agent && npm run normal",
+    "dev:agent:attack": "cd packages/mock-agent && npm run attack",
+    "dev:agent:dead": "cd packages/mock-agent && npm run dead",
+    "deploy:contract": "cd packages/contracts && npm run deploy",
+    "install:all": "npm install && cd packages/firewall && npm install && cd ../contracts && npm install && cd ../mock-agent && npm install && cd ../../apps/dashboard && npm install"
+  }
+}

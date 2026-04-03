@@ -1,0 +1,14 @@
+{
+  "name": "@agentwall/mock-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "normal": "node src/agent.js normal",
+    "attack": "node src/agent.js attack",
+    "overflow": "node src/agent.js overflow",
+    "dead": "node src/agent.js dead"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0"
+  }
+}
