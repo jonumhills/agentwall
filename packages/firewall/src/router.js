@@ -28,8 +28,9 @@ export function createFirewallRouter() {
         timestamp: Date.now()
       })
 
-      // Write to on-chain audit log
-      await writeAuditLog(result).catch(err => console.error('[Chain] Audit log write failed:', err))
+      // Write to on-chain audit log (include type so chain.js knows which function to call)
+      await writeAuditLog({ ...result, type: result.approved ? 'APPROVED' : 'BLOCKED' })
+        .catch(err => console.error('[Chain] Audit log write failed:', err))
 
       if (result.approved) {
         let txHash = '0xmock_signed_tx_hash'
