@@ -1,6 +1,7 @@
-const TIMEOUT_MS = parseInt(process.env.HEARTBEAT_TIMEOUT_MS || '300000') // 5 min default
+import { getAgentConfig } from '../registry.js'
 
 export async function checkLiveness(agentId) {
+  const { heartbeatTimeoutMs } = getAgentConfig(agentId)
   global.heartbeats = global.heartbeats || {}
   const lastBeat = global.heartbeats[agentId]
 
@@ -9,11 +10,11 @@ export async function checkLiveness(agentId) {
   }
 
   const elapsed = Date.now() - lastBeat
-  const alive = elapsed < TIMEOUT_MS
+  const alive = elapsed < heartbeatTimeoutMs
   return {
     pass: alive,
     reason: alive
       ? `Alive — last heartbeat ${Math.round(elapsed / 1000)}s ago`
-      : `Dead — no heartbeat in ${Math.round(elapsed / 1000)}s (limit: ${TIMEOUT_MS / 1000}s)`
+      : `Dead — no heartbeat in ${Math.round(elapsed / 1000)}s (limit: ${heartbeatTimeoutMs / 1000}s)`
   }
 }

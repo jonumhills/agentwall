@@ -1,0 +1,31 @@
+{
+  "agents": {
+    "TradingBot-01": {
+      "owsWallet": "AgentWallet",
+      "owsToken": "",
+      "owsKeyId": "",
+      "allowedChains": ["eip155:11155111"],
+      "spendCapUSDC": 500,
+      "allowlist": ["0xE8999724879718f1FB6396D16dF7D11fc83BA024"],
+      "heartbeatTimeoutMs": 300000
+    },
+    "PayrollBot-01": {
+      "owsWallet": "AgentWallet",
+      "owsToken": "",
+      "owsKeyId": "",
+      "allowedChains": ["eip155:11155111"],
+      "spendCapUSDC": 5000,
+      "allowlist": ["0xE8999724879718f1FB6396D16dF7D11fc83BA024"],
+      "heartbeatTimeoutMs": 300000
+    },
+    "SupportBot-01": {
+      "owsWallet": "AgentWallet",
+      "owsToken": "",
+      "owsKeyId": "",
+      "allowedChains": ["eip155:11155111"],
+      "spendCapUSDC": 100,
+      "allowlist": ["0xE8999724879718f1FB6396D16dF7D11fc83BA024"],
+      "heartbeatTimeoutMs": 300000
+    }
+  }
+}

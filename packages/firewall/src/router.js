@@ -3,15 +3,7 @@ import { signTransaction } from '@open-wallet-standard/core'
 import { runFirewall } from './firewall.js'
 import { broadcastEvent } from './ws.js'
 import { writeAuditLog } from './chain.js'
-
-const OWS_TOKEN = process.env.OWS_AGENT_TOKEN
-const OWS_WALLET = process.env.OWS_WALLET_NAME || 'agentwall-demo'
-const OWS_READY = OWS_TOKEN && OWS_TOKEN !== 'your_ows_scoped_api_token_here'
-
-async function owsSign(chain, txHex) {
-  const result = await signTransaction(OWS_WALLET, chain, txHex, OWS_TOKEN)
-  return result.signature
-}
+import { getAgentConfig, listAgents } from './registry.js'
 
 export function createFirewallRouter() {
   const router = Router()
@@ -43,16 +35,20 @@ export function createFirewallRouter() {
         let txHash = '0xmock_signed_tx_hash'
         let signedTx = null
 
-        if (OWS_READY && signingRequest.data && signingRequest.data !== '0x') {
+        // Look up this agent's specific OWS wallet + token
+        const agentCfg = getAgentConfig(agentId)
+        const owsReady = agentCfg.owsToken && !agentCfg.owsToken.startsWith('ows_key_your')
+
+        if (owsReady && data && data !== '0x') {
           try {
-            signedTx = await owsSign(signingRequest.chain, signingRequest.data)
+            signedTx = await signTransaction(agentCfg.owsWallet, chain, data, agentCfg.owsToken)
             txHash = signedTx
-            console.log(`[OWS] Signed tx for ${agentId}: ${txHash}`)
+            console.log(`[OWS] Signed tx for ${agentId} via wallet "${agentCfg.owsWallet}": ${txHash}`)
           } catch (owsErr) {
-            console.error('[OWS] Sign failed — returning mock hash:', owsErr.message)
+            console.error(`[OWS] Sign failed for ${agentId}:`, owsErr.message)
           }
-        } else if (!OWS_READY) {
-          console.log('[OWS] Token not configured — using mock tx hash')
+        } else if (!owsReady) {
+          console.log(`[OWS] No token configured for ${agentId} — returning mock hash`)
         }
 
         return res.json({ approved: true, txHash, signedTx, result })
@@ -63,6 +59,22 @@ export function createFirewallRouter() {
       console.error('[Firewall] Error:', err)
       res.status(500).json({ error: err.message })
     }
+  })
+
+  // List all registered agents and their config (without tokens)
+  router.get('/agents', (req, res) => {
+    const agents = listAgents().map(id => {
+      const cfg = getAgentConfig(id)
+      return {
+        agentId: id,
+        owsWallet: cfg.owsWallet,
+        allowedChains: cfg.allowedChains,
+        spendCapUSDC: cfg.spendCapUSDC,
+        allowlistCount: cfg.allowlist.length,
+        heartbeatTimeoutMs: cfg.heartbeatTimeoutMs
+      }
+    })
+    res.json({ agents })
   })
 
   return router

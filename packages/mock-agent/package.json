@@ -6,6 +6,7 @@
     "normal": "node src/agent.js normal",
     "attack": "node src/agent.js attack",
     "overflow": "node src/agent.js overflow",
+    "multi": "node src/agent.js multi",
     "dead": "node src/agent.js dead"
   },
   "dependencies": {

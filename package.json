@@ -8,6 +8,7 @@
     "dev:dashboard": "cd apps/dashboard && npm run dev",
     "dev:agent:normal": "cd packages/mock-agent && npm run normal",
     "dev:agent:attack": "cd packages/mock-agent && npm run attack",
+    "dev:agent:multi": "cd packages/mock-agent && npm run multi",
     "dev:agent:dead": "cd packages/mock-agent && npm run dead",
     "deploy:contract": "cd packages/contracts && npm run deploy",
     "install:all": "npm install && cd packages/firewall && npm install && cd ../contracts && npm install && cd ../mock-agent && npm install && cd ../../apps/dashboard && npm install"

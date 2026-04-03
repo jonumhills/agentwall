@@ -1,14 +1,15 @@
 import { spendLedger } from '../firewall.js'
-const CAP = parseFloat(process.env.SPEND_CAP_USDC || '500')
+import { getAgentConfig } from '../registry.js'
 
 export async function checkSpendCap(agentId, value) {
+  const { spendCapUSDC } = getAgentConfig(agentId)
   const spent = spendLedger[agentId] || 0
   const txAmount = parseFloat(value || 0)
-  const wouldExceed = (spent + txAmount) > CAP
+  const wouldExceed = (spent + txAmount) > spendCapUSDC
   return {
     pass: !wouldExceed,
     reason: wouldExceed
-      ? `Spend cap exceeded: $${spent + txAmount} > $${CAP} limit`
-      : `Within cap: $${spent + txAmount} of $${CAP}`
+      ? `Spend cap exceeded: $${spent + txAmount} > $${spendCapUSDC} limit for agent ${agentId}`
+      : `Within cap: $${spent + txAmount} of $${spendCapUSDC} for agent ${agentId}`
   }
 }
