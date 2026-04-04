@@ -41,7 +41,6 @@ Each agent is configured independently in `agentwall.config.json`:
 
 🔗 [On-chain audit log — Ethereum Sepolia](https://sepolia.etherscan.io/address/0x26be9840C28B8b4FE5c4CdF7c0367B03dF6cB341#events)
 
-![LandingPage](assets/LandingPage.png)
 
 ---
 
@@ -129,3 +128,5 @@ Open [http://localhost:3000](http://localhost:3000) for the landing page and [ht
 ---
 
 *OWS Hackathon · Track 02 · Agent Spend Governance & Identity*
+
+
