@@ -110,26 +110,54 @@ export default function LandingPage() {
       {/* Flow diagram */}
       <section className="py-10 px-6">
         <div className="max-w-3xl mx-auto">
-          <div className="bg-gray-900/80 border border-gray-800 rounded-2xl px-6 py-5 flex flex-wrap items-center justify-center gap-2 font-mono">
-            {[
-              { label: 'AI Agent',       cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
-              { label: '→' },
-              { label: 'POST /api/sign', cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
-              { label: '→' },
-              { label: 'AgentWall ✦',   cls: '', orange: true },
-              { label: '→' },
-              { label: '5 Rules',        cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
-              { label: '→' },
-              { label: 'OWS Vault',      cls: 'bg-green-900 border border-green-700 text-green-300' },
-              { label: '→' },
-              { label: 'Ethereum',       cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
-            ].map((item, i) =>
-              item.label === '→'
-                ? <span key={i} className="text-gray-600 text-base">→</span>
-                : item.orange
-                  ? <span key={i} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: OG }}>{item.label}</span>
-                  : <span key={i} className={`px-3 py-1.5 rounded-lg text-xs ${item.cls}`}>{item.label}</span>
-            )}
+          <div className="bg-gray-900/80 border border-gray-800 rounded-2xl px-8 py-8 flex items-center justify-center gap-0 font-mono">
+
+            {/* AI Agent */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-28 h-20 rounded-2xl bg-gray-800 border border-gray-700 flex flex-col items-center justify-center gap-1 shadow-lg">
+                <span className="text-2xl">🤖</span>
+                <span className="text-xs font-bold text-gray-300">AI Agent</span>
+              </div>
+              <span className="text-xs text-gray-600 font-mono">POST /api/sign</span>
+            </div>
+
+            {/* Arrow 1 */}
+            <div className="flex flex-col items-center px-3 pb-6">
+              <div className="flex items-center gap-1 text-gray-600">
+                <div className="w-10 h-px bg-gray-700" />
+                <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M1 1l6 5-6 5" stroke="#4b5563" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+            </div>
+
+            {/* AgentWall */}
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className="w-36 h-24 rounded-2xl flex flex-col items-center justify-center gap-1.5 shadow-xl ring-2"
+                style={{ backgroundColor: OG, boxShadow: `0 0 24px ${OG}55, 0 0 0 2px ${OG}` }}>
+                <span className="text-2xl">🛡️</span>
+                <span className="text-sm font-black text-white tracking-tight">AgentWall</span>
+                <span className="text-xs text-white/70">5 rules</span>
+              </div>
+              <span className="text-xs font-mono" style={{ color: OG }}>firewall layer</span>
+            </div>
+
+            {/* Arrow 2 */}
+            <div className="flex flex-col items-center px-3 pb-6">
+              <div className="flex items-center gap-1 text-gray-600">
+                <div className="w-10 h-px bg-gray-700" />
+                <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M1 1l6 5-6 5" stroke="#4b5563" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+            </div>
+
+            {/* OWS Vault */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-28 h-20 rounded-2xl bg-green-900 border border-green-700 flex flex-col items-center justify-center gap-1 shadow-lg" style={{ boxShadow: '0 0 16px rgba(34,197,94,0.15)' }}>
+                <span className="text-2xl">🔑</span>
+                <span className="text-xs font-bold text-green-300">OWS Vault</span>
+              </div>
+              <span className="text-xs text-green-600 font-mono">signs &amp; executes</span>
+            </div>
+
           </div>
           <p className="text-center text-gray-600 text-xs mt-3 font-medium">
             The key never decrypts unless all 5 rules pass.
