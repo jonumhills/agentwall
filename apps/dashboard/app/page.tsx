@@ -1,555 +1,394 @@
-'use client'
-import { useEffect, useState, useRef } from 'react'
+import Link from 'next/link'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+const GITHUB = 'https://github.com/jonumhills/agentwall'
+const DASHBOARD = '/dashboard'
+const ETHERSCAN = 'https://sepolia.etherscan.io/address/0x26be9840C28B8b4FE5c4CdF7c0367B03dF6cB341#events'
 
-type RuleKey = 'r1' | 'r2' | 'r3' | 'r4' | 'r5'
-type RuleState = { pass: boolean; reason: string } | 'pending' | 'waiting'
+const rules = [
+  {
+    id: 'R1',
+    name: 'Allowlist',
+    icon: '🔐',
+    color: 'from-blue-600 to-blue-800',
+    border: 'border-blue-800',
+    text: 'text-blue-400',
+    desc: 'Every recipient address is checked against a per-agent approved list. Unknown addresses are blocked before anything else runs.',
+    example: 'AttackAgent sends to burn address → BLOCKED immediately',
+  },
+  {
+    id: 'R2',
+    name: 'Spend Cap',
+    icon: '💰',
+    color: 'from-emerald-600 to-emerald-800',
+    border: 'border-emerald-800',
+    text: 'text-emerald-400',
+    desc: "Each agent has its own daily spend limit. Transactions that would push the agent over its cap are blocked — even if everything else looks fine.",
+    example: 'SupportAgent ($100 cap) tries $200 → BLOCKED by R2',
+  },
+  {
+    id: 'R3',
+    name: 'Liveness',
+    icon: '♥',
+    color: 'from-rose-600 to-rose-800',
+    border: 'border-rose-800',
+    text: 'text-rose-400',
+    desc: 'Agents must send a heartbeat every 60s to prove they are alive and under control. No heartbeat = no signing. Goes silent long enough = auto-revoked.',
+    example: 'PayrollAgent stops heartbeating → REVOKED + funds swept',
+  },
+  {
+    id: 'R4',
+    name: 'Intent Verification',
+    icon: '🤖',
+    color: 'from-violet-600 to-violet-800',
+    border: 'border-violet-800',
+    text: 'text-violet-400',
+    desc: "Claude reads the agent's declared intent and checks if it semantically matches the actual transaction. Stops prompt injection at the wallet layer — not the tool layer.",
+    example: '"Pay supplier" but tx goes to burn address → Claude detects mismatch → BLOCKED',
+  },
+  {
+    id: 'R5',
+    name: 'Anomaly Detection',
+    icon: '📊',
+    color: 'from-amber-600 to-amber-800',
+    border: 'border-amber-800',
+    text: 'text-amber-400',
+    desc: 'Compares each transaction against the agent\'s historical baseline. Flags amounts that are 5× above average or off-hours transactions to new recipients.',
+    example: 'Agent that usually sends $50 suddenly sends $5,000 → BLOCKED',
+  },
+]
 
-type LiveEval = {
-  txId: string
-  agentId: string
-  to: string
-  value: string
-  intent: string
-  chain: string
-  rules: Record<RuleKey, RuleState>
-  status: 'evaluating' | 'approved' | 'blocked'
-  txHash?: string
-  timestamp: number
-}
+const timeline = [
+  { step: '01', label: 'Agent declares intent', desc: 'Agent sends POST /api/sign with tx details + natural language intent' },
+  { step: '02', label: 'AgentWall intercepts', desc: '5 rules run in sequence — live results stream to the dashboard' },
+  { step: '03', label: 'Pass or Block', desc: 'All 5 pass → OWS signs with the agent\'s scoped token. Any fail → blocked, logged on-chain' },
+  { step: '04', label: 'On-chain audit', desc: 'Every decision is written to the AgentWallLog contract on Ethereum Sepolia' },
+]
 
-type HistoryEvent = {
-  txId: string
-  agentId: string
-  to: string
-  value: string
-  intent: string
-  status: 'approved' | 'blocked' | 'revoked' | 'swept'
-  failedRules: { rule: string; reason: string }[]
-  allRules: Partial<Record<RuleKey, { pass: boolean; reason: string }>>
-  txHash?: string
-  reason?: string
-  timestamp: number
-}
-
-type Agent = {
-  id: string
-  spendToday: number
-  spendCap: number
-  rules: Partial<Record<string, boolean>>
-  status: 'alive' | 'revoked'
-}
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const RULE_ORDER: RuleKey[] = ['r1', 'r2', 'r3', 'r4', 'r5']
-
-const RULE_META: Record<RuleKey, { label: string; short: string }> = {
-  r1: { label: 'Allowlist',     short: 'Recipient on approved list' },
-  r2: { label: 'Spend Cap',     short: 'Daily spend limit' },
-  r3: { label: 'Liveness',      short: 'Agent heartbeat' },
-  r4: { label: 'Intent (AI)',   short: 'Claude semantic check' },
-  r5: { label: 'Anomaly',       short: 'Behavioural baseline' },
-}
-
-const CONTRACT  = '0x26be9840C28B8b4FE5c4CdF7c0367B03dF6cB341'
-const ETHERSCAN = 'https://sepolia.etherscan.io'
-const WS_URL    = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002'
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const trunc = (s: string, n = 8) => s ? `${s.slice(0, n)}…${s.slice(-4)}` : ''
-const isMockHash = (h?: string) => !h || h.startsWith('0xmock')
-const txLink  = (hash?: string) => isMockHash(hash) ? null : `${ETHERSCAN}/tx/${hash}`
-const logLink = () => `${ETHERSCAN}/address/${CONTRACT}#events`
-const timeStr = (ts: number) => new Date(ts).toLocaleTimeString()
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-function RulePill({ name, state }: { name: RuleKey; state: RuleState }) {
-  const meta = RULE_META[name]
-
-  if (state === 'waiting') {
-    return (
-      <div className="flex items-center gap-2 py-1.5">
-        <span className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-gray-600 text-xs">–</span>
-        <span className="text-gray-600 text-xs">{meta.label}</span>
-        <span className="text-gray-700 text-xs ml-auto">waiting</span>
-      </div>
-    )
-  }
-
-  if (state === 'pending') {
-    return (
-      <div className="flex items-center gap-2 py-1.5">
-        <span className="w-5 h-5 flex items-center justify-center rounded-full bg-yellow-900 text-yellow-400 text-xs animate-spin">⟳</span>
-        <span className="text-yellow-300 text-xs font-medium">{meta.label}</span>
-        <span className="text-yellow-600 text-xs ml-auto">evaluating…</span>
-      </div>
-    )
-  }
-
-  const { pass, reason } = state
+export default function LandingPage() {
   return (
-    <div className={`rounded py-1.5 px-2 ${pass ? 'bg-green-950' : 'bg-red-950'}`}>
-      <div className="flex items-center gap-2">
-        <span className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold ${pass ? 'bg-green-800 text-green-300' : 'bg-red-800 text-red-300'}`}>
-          {pass ? '✓' : '✗'}
-        </span>
-        <span className={`text-xs font-medium ${pass ? 'text-green-300' : 'text-red-300'}`}>{meta.label}</span>
-      </div>
-      <p className={`text-xs mt-1 ml-7 leading-relaxed ${pass ? 'text-green-600' : 'text-red-400'}`}>{reason}</p>
-    </div>
-  )
-}
+    <div className="min-h-screen bg-gray-950 text-gray-100 font-sans">
 
-function LiveEvalCard({ ev }: { ev: LiveEval }) {
-  const borderColor = ev.status === 'approved' ? 'border-green-700' : ev.status === 'blocked' ? 'border-red-700' : 'border-yellow-700'
-  const headerBg    = ev.status === 'approved' ? 'bg-green-900/40' : ev.status === 'blocked' ? 'bg-red-900/40' : 'bg-yellow-900/20'
-  const statusLabel = ev.status === 'approved' ? '✅ APPROVED' : ev.status === 'blocked' ? '❌ BLOCKED' : '⟳ EVALUATING'
-
-  return (
-    <div className={`bg-gray-900 border ${borderColor} rounded-lg overflow-hidden`}>
-      <div className={`${headerBg} px-3 py-2 flex items-center justify-between`}>
-        <span className="text-xs font-bold text-white">{ev.agentId}</span>
-        <span className="text-xs font-mono text-gray-400">{statusLabel}</span>
-      </div>
-
-      <div className="px-3 py-2 border-b border-gray-800 space-y-0.5">
-        <div className="flex gap-2 text-xs">
-          <span className="text-gray-500 w-10">To</span>
-          <span className="text-gray-300 font-mono">{trunc(ev.to)}</span>
+      {/* Nav */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur border-b border-gray-800">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <span className="font-mono font-bold text-white tracking-tight">AgentWall</span>
+          <div className="flex items-center gap-6">
+            <a href={GITHUB} target="_blank" rel="noopener noreferrer"
+              className="text-sm text-gray-400 hover:text-white transition-colors">GitHub</a>
+            <Link href={DASHBOARD}
+              className="text-sm bg-white text-gray-950 px-4 py-1.5 rounded-full font-medium hover:bg-gray-200 transition-colors">
+              Live Dashboard →
+            </Link>
+          </div>
         </div>
-        <div className="flex gap-2 text-xs">
-          <span className="text-gray-500 w-10">Value</span>
-          <span className="text-gray-300">${ev.value}</span>
-        </div>
-        <div className="flex gap-2 text-xs">
-          <span className="text-gray-500 w-10">Intent</span>
-          <span className="text-gray-400 italic truncate">"{ev.intent}"</span>
-        </div>
-      </div>
+      </nav>
 
-      <div className="px-3 py-2 space-y-1">
-        {RULE_ORDER.map(r => (
-          <RulePill key={r} name={r} state={ev.rules[r]} />
-        ))}
-      </div>
+      {/* Hero */}
+      <section className="pt-32 pb-24 px-6 text-center">
+        <div className="inline-flex items-center gap-2 text-xs bg-violet-950 border border-violet-800 text-violet-300 px-3 py-1.5 rounded-full mb-8">
+          <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+          OWS Hackathon · Track 02 · Agent Spend Governance &amp; Identity
+        </div>
 
-      {ev.status !== 'evaluating' && (
-        <div className="px-3 py-2 border-t border-gray-800 flex gap-3">
-          {!isMockHash(ev.txHash) && txLink(ev.txHash) && (
-            <a href={txLink(ev.txHash)!} target="_blank" rel="noopener noreferrer"
-              className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2">
-              View tx on Etherscan ↗
-            </a>
-          )}
-          <a href={logLink()} target="_blank" rel="noopener noreferrer"
-            className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2">
-            Audit log ↗
+        <h1 className="text-5xl sm:text-7xl font-bold text-white tracking-tight leading-none mb-6">
+          Your AI agents have<br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400">
+            wallets.
+          </span>
+          <br />Who's watching them?
+        </h1>
+
+        <p className="text-lg text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+          AgentWall is a 5-rule execution firewall built on the Open Wallet Standard.
+          Every transaction an AI agent tries to sign passes through AgentWall first.
+          Any rule fails — the key never decrypts.
+        </p>
+
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <Link href={DASHBOARD}
+            className="bg-white text-gray-950 px-6 py-3 rounded-full font-semibold hover:bg-gray-100 transition-colors">
+            View Live Dashboard →
+          </Link>
+          <a href={GITHUB} target="_blank" rel="noopener noreferrer"
+            className="border border-gray-700 text-gray-300 px-6 py-3 rounded-full font-semibold hover:border-gray-500 hover:text-white transition-colors">
+            GitHub ↗
+          </a>
+          <a href={ETHERSCAN} target="_blank" rel="noopener noreferrer"
+            className="border border-gray-700 text-gray-300 px-6 py-3 rounded-full font-semibold hover:border-gray-500 hover:text-white transition-colors">
+            On-chain Audit Log ↗
           </a>
         </div>
-      )}
-    </div>
-  )
-}
+      </section>
 
-function HistoryCard({ ev }: { ev: HistoryEvent }) {
-  const [expanded, setExpanded] = useState(false)
-
-  const isRevoked = ev.status === 'revoked'
-  const isSwept   = ev.status === 'swept'
-
-  const badge = {
-    approved: 'bg-green-900 text-green-300 border-green-700',
-    blocked:  'bg-red-900 text-red-300 border-red-700',
-    revoked:  'bg-purple-900 text-purple-300 border-purple-700',
-    swept:    'bg-amber-900 text-amber-300 border-amber-700',
-  }[ev.status]
-
-  const label = {
-    approved: '✅ APPROVED',
-    blocked:  '❌ BLOCKED',
-    revoked:  '☠ REVOKED',
-    swept:    '↩ SWEPT',
-  }[ev.status]
-
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="w-full text-left px-3 py-2.5 flex items-start gap-3 hover:bg-gray-800/50 transition-colors"
-      >
-        <span className={`text-xs font-bold px-2 py-0.5 rounded border whitespace-nowrap mt-0.5 ${badge}`}>{label}</span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-white font-medium">{ev.agentId}</span>
-            {ev.to && <span className="text-gray-500">→ {trunc(ev.to)}</span>}
-            {parseFloat(ev.value) > 0 && <span className="text-gray-500">${ev.value}</span>}
+      {/* Flow diagram */}
+      <section className="py-16 px-6 bg-gray-900/50">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-center gap-2 flex-wrap text-sm font-mono">
+            {[
+              { label: 'AI Agent', bg: 'bg-gray-800', text: 'text-gray-300' },
+              { label: '→', bg: '', text: 'text-gray-600' },
+              { label: 'POST /api/sign', bg: 'bg-gray-800', text: 'text-gray-300' },
+              { label: '→', bg: '', text: 'text-gray-600' },
+              { label: 'AgentWall', bg: 'bg-violet-900 border border-violet-700', text: 'text-violet-300 font-bold' },
+              { label: '→', bg: '', text: 'text-gray-600' },
+              { label: '5 Rules', bg: 'bg-gray-800', text: 'text-gray-300' },
+              { label: '→', bg: '', text: 'text-gray-600' },
+              { label: 'OWS Vault', bg: 'bg-emerald-900 border border-emerald-700', text: 'text-emerald-300' },
+              { label: '→', bg: '', text: 'text-gray-600' },
+              { label: 'Ethereum', bg: 'bg-gray-800', text: 'text-gray-300' },
+            ].map((item, i) => (
+              item.label === '→'
+                ? <span key={i} className="text-gray-600 text-lg">→</span>
+                : <span key={i} className={`px-3 py-2 rounded-lg text-xs ${item.bg} ${item.text}`}>{item.label}</span>
+            ))}
           </div>
-          {ev.intent && (
-            <p className="text-xs text-gray-500 italic truncate mt-0.5">"{ev.intent}"</p>
-          )}
-          {ev.reason && (
-            <p className="text-xs text-gray-400 mt-0.5">{ev.reason}</p>
-          )}
-          {!expanded && ev.failedRules.length > 0 && (
-            <div className="flex gap-1 mt-1">
-              {ev.failedRules.map(fr => (
-                <span key={fr.rule} className="text-xs bg-red-900/60 text-red-400 px-1.5 py-0.5 rounded font-mono">
-                  {fr.rule.toUpperCase()} ✗
-                </span>
-              ))}
-            </div>
-          )}
+          <p className="text-center text-gray-500 text-sm mt-6">
+            The key never decrypts unless all 5 rules pass. OWS never sees the request unless AgentWall approves it.
+          </p>
         </div>
-        <span className="text-xs text-gray-600 whitespace-nowrap">{timeStr(ev.timestamp)}</span>
-      </button>
+      </section>
 
-      {expanded && (
-        <div className="border-t border-gray-800 px-3 py-2 space-y-1">
-          {RULE_ORDER.map(r => {
-            const rule = ev.allRules[r]
-            if (!rule) return null
-            return (
-              <div key={r} className={`flex items-start gap-2 text-xs py-1 rounded px-1.5 ${rule.pass ? 'bg-green-950/50' : 'bg-red-950/50'}`}>
-                <span className={`font-bold mt-0.5 ${rule.pass ? 'text-green-400' : 'text-red-400'}`}>
-                  {rule.pass ? '✓' : '✗'}
-                </span>
-                <div>
-                  <span className={`font-medium ${rule.pass ? 'text-green-300' : 'text-red-300'}`}>{RULE_META[r].label}</span>
-                  <p className={`${rule.pass ? 'text-green-700' : 'text-red-400'} mt-0.5`}>{rule.reason}</p>
+      {/* 5 Rules */}
+      <section className="py-24 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">5 Rules. 0 Exceptions.</h2>
+            <p className="text-gray-400 max-w-xl mx-auto">
+              Every signing request passes through all five rules in order.
+              The first failure blocks the transaction — no negotiation.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {rules.map((rule, i) => (
+              <div key={rule.id} className={`bg-gray-900 border ${rule.border} rounded-2xl p-6 ${i === 3 ? 'sm:col-span-2 lg:col-span-1' : ''}`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${rule.color} flex items-center justify-center text-lg`}>
+                    {rule.icon}
+                  </div>
+                  <div>
+                    <span className={`text-xs font-mono font-bold ${rule.text}`}>{rule.id}</span>
+                    <h3 className="text-white font-semibold text-sm">{rule.name}</h3>
+                  </div>
+                </div>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">{rule.desc}</p>
+                <div className="bg-gray-950 rounded-lg px-3 py-2">
+                  <p className="text-xs text-gray-500 font-mono">{rule.example}</p>
                 </div>
               </div>
-            )
-          })}
-          <div className="flex gap-3 pt-1">
-            {!isMockHash(ev.txHash) && txLink(ev.txHash) && (
-              <a href={txLink(ev.txHash)!} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2">
-                View tx ↗
-              </a>
-            )}
-            <a href={logLink()} target="_blank" rel="noopener noreferrer"
-              className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2">
-              On-chain audit log ↗
+            ))}
+          </div>
+
+          {/* R4 callout */}
+          <div className="mt-6 bg-violet-950/50 border border-violet-800 rounded-2xl p-6 flex gap-4">
+            <div className="text-2xl">🤖</div>
+            <div>
+              <h3 className="text-violet-300 font-semibold mb-1">R4 is new — Claude reads the agent's mind</h3>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                Existing agent safety tools stop malicious <span className="font-mono text-gray-300">DROP TABLE</span> commands.
+                AgentWall stops wallet drains. Rule 4 uses Claude to verify that what an agent <em>says</em> it's doing
+                actually matches what the transaction <em>does</em> — semantically, not syntactically.
+                Prompt injection at the tool layer becomes irrelevant when the wallet layer catches it.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Dead Man's Switch */}
+      <section className="py-24 px-6 bg-gray-900/50">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="text-xs text-rose-400 font-mono font-bold uppercase tracking-widest mb-4">Dead Man's Switch</div>
+              <h2 className="text-3xl font-bold text-white mb-4">Silence = Lockdown</h2>
+              <p className="text-gray-400 leading-relaxed mb-6">
+                Every agent must send a heartbeat every 60 seconds.
+                If an agent goes silent — crashed, hijacked, or killed —
+                AgentWall automatically revokes its OWS API token and
+                broadcasts a sweep event to your recovery wallet.
+                No human needed. No delay.
+              </p>
+              <div className="space-y-3">
+                {[
+                  'Agent stops heartbeating',
+                  'Dead Man\'s Switch fires after timeout',
+                  'OWS token revoked — agent can never sign again',
+                  'Funds swept to recovery wallet',
+                  'REVOKED + SWEPT written to on-chain audit log',
+                ].map((step, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-full bg-rose-900 border border-rose-700 text-rose-400 text-xs flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+                    <span className="text-sm text-gray-300">{step}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-gray-950 border border-gray-800 rounded-2xl p-5 font-mono text-xs space-y-2">
+              <div className="text-gray-600"># firewall logs</div>
+              <div className="text-gray-400">[PayrollAgent-01] ♥ heartbeat sent</div>
+              <div className="text-gray-400">[PayrollAgent-01] ♥ heartbeat sent</div>
+              <div className="text-gray-600">... 5 seconds of silence ...</div>
+              <div className="text-rose-400">[DeadManSwitch] PayrollAgent-01 went silent</div>
+              <div className="text-rose-400">[DeadManSwitch] Revoking OWS token...</div>
+              <div className="text-amber-400">[Chain] REVOKED logged on-chain</div>
+              <div className="text-amber-400">[Chain] SWEPT logged on-chain</div>
+              <div className="text-gray-600"># dashboard shows:</div>
+              <div className="text-rose-300">☠ REVOKED  PayrollAgent-01</div>
+              <div className="text-amber-300">↩ SWEPT    → 0xE8999...024</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Multi-agent */}
+      <section className="py-24 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="text-xs text-emerald-400 font-mono font-bold uppercase tracking-widest mb-4">Per-Agent Governance</div>
+          <h2 className="text-3xl font-bold text-white mb-4">One firewall. Any number of agents.</h2>
+          <p className="text-gray-400 max-w-2xl mx-auto mb-12">
+            Each agent gets its own OWS wallet, spend cap, allowlist, and heartbeat timeout.
+            Revoking one agent never affects the others. One config file — that's all it takes.
+          </p>
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left font-mono text-xs">
+            <div className="text-gray-500 mb-3"># agentwall.config.json</div>
+            <div className="space-y-1">
+              <div className="text-gray-400">{'{'}</div>
+              <div className="text-gray-400 pl-4">"agents": {'{'}</div>
+              <div className="pl-8">
+                <span className="text-emerald-400">"TradingAgent-01"</span>
+                <span className="text-gray-400">: {'{ '}</span>
+                <span className="text-blue-400">"spendCapUSDC"</span>
+                <span className="text-gray-400">: </span>
+                <span className="text-amber-400">500</span>
+                <span className="text-gray-400">, </span>
+                <span className="text-blue-400">"owsWallet"</span>
+                <span className="text-gray-400">: </span>
+                <span className="text-amber-400">"trading-wallet"</span>
+                <span className="text-gray-400"> {'}'}</span>
+              </div>
+              <div className="pl-8">
+                <span className="text-rose-400">"SupportAgent-01"</span>
+                <span className="text-gray-400">: {'{ '}</span>
+                <span className="text-blue-400">"spendCapUSDC"</span>
+                <span className="text-gray-400">: </span>
+                <span className="text-amber-400">100</span>
+                <span className="text-gray-400">, </span>
+                <span className="text-blue-400">"owsWallet"</span>
+                <span className="text-gray-400">: </span>
+                <span className="text-amber-400">"support-wallet"</span>
+                <span className="text-gray-400"> {'}'}</span>
+              </div>
+              <div className="pl-8">
+                <span className="text-violet-400">"PayrollAgent-01"</span>
+                <span className="text-gray-400">: {'{ '}</span>
+                <span className="text-blue-400">"spendCapUSDC"</span>
+                <span className="text-gray-400">: </span>
+                <span className="text-amber-400">5000</span>
+                <span className="text-gray-400">, </span>
+                <span className="text-blue-400">"owsWallet"</span>
+                <span className="text-gray-400">: </span>
+                <span className="text-amber-400">"payroll-wallet"</span>
+                <span className="text-gray-400"> {'}'}</span>
+              </div>
+              <div className="text-gray-400 pl-4">{'}'}</div>
+              <div className="text-gray-400">{'}'}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How it works timeline */}
+      <section className="py-24 px-6 bg-gray-900/50">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-white mb-4">How a transaction flows</h2>
+          </div>
+          <div className="relative">
+            <div className="absolute left-5 top-0 bottom-0 w-px bg-gray-800" />
+            <div className="space-y-8">
+              {timeline.map((item) => (
+                <div key={item.step} className="flex gap-6 relative">
+                  <div className="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center flex-shrink-0 z-10">
+                    <span className="text-xs font-mono font-bold text-gray-400">{item.step}</span>
+                  </div>
+                  <div className="pt-1.5 pb-8">
+                    <h3 className="text-white font-semibold mb-1">{item.label}</h3>
+                    <p className="text-gray-400 text-sm">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* OWS integration */}
+      <section className="py-24 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="text-xs text-blue-400 font-mono font-bold uppercase tracking-widest mb-4">Built on OWS</div>
+          <h2 className="text-3xl font-bold text-white mb-4">The key never leaves the vault</h2>
+          <p className="text-gray-400 max-w-2xl mx-auto mb-12">
+            AgentWall sits in front of OWS — not inside it. Agents never hold keys.
+            OWS handles encryption, signing, and key isolation.
+            AgentWall handles who gets to ask OWS to sign.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { title: 'Scoped Tokens', desc: 'Each agent gets its own OWS API token — scoped to its wallet only. Revoke one without touching others.' },
+              { title: 'Key Isolation', desc: 'Private keys are decrypted only after all 5 rules pass. Fail any rule and the key is never touched.' },
+              { title: 'On-Chain Proof', desc: 'Every APPROVED, BLOCKED, REVOKED and SWEPT event is written to the AgentWallLog contract on Ethereum Sepolia.' },
+            ].map(item => (
+              <div key={item.title} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left">
+                <h3 className="text-white font-semibold mb-2">{item.title}</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-24 px-6 text-center">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            See it live
+          </h2>
+          <p className="text-gray-400 mb-10 leading-relaxed">
+            Open the dashboard and run the demo agents to watch AgentWall intercept,
+            evaluate, block, and revoke — all in real time.
+          </p>
+          <div className="flex items-center justify-center gap-4 flex-wrap">
+            <Link href={DASHBOARD}
+              className="bg-white text-gray-950 px-8 py-3 rounded-full font-semibold hover:bg-gray-100 transition-colors text-lg">
+              Open Dashboard →
+            </Link>
+            <a href={GITHUB} target="_blank" rel="noopener noreferrer"
+              className="border border-gray-700 text-gray-300 px-8 py-3 rounded-full font-semibold hover:border-gray-500 hover:text-white transition-colors text-lg">
+              View Source ↗
             </a>
           </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AgentCard({ agent }: { agent: Agent }) {
-  const pct = Math.min((agent.spendToday / (agent.spendCap || 500)) * 100, 100)
-  const barColor = pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-yellow-500' : 'bg-green-500'
-
-  return (
-    <div className={`bg-gray-900 border rounded-lg p-3 mb-2 ${agent.status === 'revoked' ? 'border-red-900 opacity-60' : 'border-gray-800'}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <div className={`w-2 h-2 rounded-full ${agent.status === 'alive' ? 'bg-green-400 animate-pulse' : 'bg-red-500'}`} />
-        <span className="text-xs font-medium text-white">{agent.id}</span>
-        {agent.status === 'revoked' && (
-          <span className="ml-auto text-xs bg-red-900 text-red-400 px-1.5 py-0.5 rounded">REVOKED</span>
-        )}
-      </div>
-      <div className="mb-2">
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>Spend</span>
-          <span>${agent.spendToday.toFixed(0)} / ${agent.spendCap}</span>
-        </div>
-        <div className="h-1 bg-gray-800 rounded-full">
-          <div className={`h-1 rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
-        </div>
-      </div>
-      <div className="flex gap-1">
-        {RULE_ORDER.map(r => {
-          const pass = agent.rules[r.toUpperCase()]
-          return (
-            <span key={r} className={`text-xs px-1.5 py-0.5 rounded font-mono ${pass === undefined ? 'bg-gray-800 text-gray-500' : pass ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'}`}>
-              {r.toUpperCase()}
-            </span>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
-
-export default function AgentWallDashboard() {
-  const [liveEval, setLiveEval]   = useState<LiveEval | null>(null)
-  const [history, setHistory]     = useState<HistoryEvent[]>([])
-  const [agents, setAgents]       = useState<Record<string, Agent>>({})
-  const [stats, setStats]         = useState({ total: 0, approved: 0, blocked: 0, revoked: 0 })
-  const [connected, setConnected] = useState(false)
-  const ws = useRef<WebSocket | null>(null)
-  const destroyed = useRef(false)
-  const seenTxIds = useRef<Set<string>>(new Set())
-
-  useEffect(() => {
-    destroyed.current = false
-
-    function connect() {
-      if (destroyed.current) return
-      // Close any existing connection before opening a new one
-      if (ws.current && ws.current.readyState < 2) {
-        ws.current.onclose = null
-        ws.current.close()
-      }
-      ws.current = new WebSocket(WS_URL)
-      ws.current.onopen  = () => { if (!destroyed.current) setConnected(true) }
-      ws.current.onclose = () => {
-        if (destroyed.current) return
-        setConnected(false)
-        setTimeout(connect, 3000)
-      }
-      ws.current.onmessage = (msg) => {
-        if (!destroyed.current) handle(JSON.parse(msg.data))
-      }
-    }
-
-    connect()
-    return () => {
-      destroyed.current = true
-      if (ws.current) {
-        ws.current.onclose = null
-        ws.current.close()
-      }
-    }
-  }, [])
-
-  function handle(ev: any) {
-    if (ev.type === 'connected') return
-    // Global dedup — ref is synchronous, safe even with multiple WS connections
-    const dedupKey = ev.txId || `${ev.type}-${ev.agentId}-${ev.timestamp}`
-    if (seenTxIds.current.has(dedupKey)) return
-    seenTxIds.current.add(dedupKey)
-
-      // New tx starting evaluation
-    if (ev.type === 'EVALUATING') {
-      setLiveEval({
-        txId: ev.txId, agentId: ev.agentId, chain: ev.chain,
-        to: ev.to, value: ev.value, intent: ev.intent,
-        rules: { r1: 'pending', r2: 'waiting', r3: 'waiting', r4: 'waiting', r5: 'waiting' },
-        status: 'evaluating',
-        timestamp: ev.timestamp
-      })
-      // Update agent spend cap from server-provided value
-      if (ev.agentId && ev.spendCap) {
-        setAgents(prev => ({
-          ...prev,
-          [ev.agentId]: {
-            ...(prev[ev.agentId] || { id: ev.agentId, spendToday: 0, rules: {}, status: 'alive' as const }),
-            spendCap: ev.spendCap
-          }
-        }))
-      }
-      return
-    }
-
-    // Individual rule completed
-    if (ev.type === 'RULE_RESULT') {
-      setLiveEval(prev => {
-        if (!prev || prev.txId !== ev.txId) return prev
-        const rules = { ...prev.rules }
-        rules[ev.rule as RuleKey] = { pass: ev.pass, reason: ev.reason }
-        // Advance next rule to 'pending'
-        const idx = RULE_ORDER.indexOf(ev.rule as RuleKey)
-        if (idx >= 0 && idx < RULE_ORDER.length - 1) {
-          rules[RULE_ORDER[idx + 1]] = 'pending'
-        }
-        return { ...prev, rules }
-      })
-      return
-    }
-
-    // Final result
-    if (ev.type === 'APPROVED' || ev.type === 'BLOCKED') {
-      setStats(prev => ({
-        total: prev.total + 1,
-        approved: ev.type === 'APPROVED' ? prev.approved + 1 : prev.approved,
-        blocked:  ev.type === 'BLOCKED'  ? prev.blocked  + 1 : prev.blocked,
-        revoked: prev.revoked
-      }))
-
-      setLiveEval(prev => {
-        if (!prev) return null
-        // Fill in any rules from the final event that weren't streamed
-        const rules = { ...prev.rules }
-        if (ev.rules) {
-          RULE_ORDER.forEach(r => {
-            if (ev.rules[r] && (rules[r] === 'waiting' || rules[r] === 'pending')) {
-              rules[r] = ev.rules[r]
-            }
-          })
-        }
-        const updated: LiveEval = {
-          ...prev,
-          status: ev.type === 'APPROVED' ? 'approved' : 'blocked',
-          txHash: ev.txHash,
-          rules
-        }
-        // Move to history after 2.5s — only clear liveEval if txId still matches
-        const completedTxId = updated.txId
-        const historyEntry: HistoryEvent = {
-          txId: updated.txId,
-          agentId: updated.agentId,
-          to: updated.to,
-          value: updated.value,
-          intent: updated.intent,
-          status: updated.status as 'approved' | 'blocked',
-          failedRules: ev.failedRules || [],
-          allRules: ev.rules || {},
-          txHash: updated.txHash,
-          timestamp: updated.timestamp
-        }
-        setHistory(h => [historyEntry, ...h].slice(0, 50))
-        setTimeout(() => {
-          setLiveEval(curr => curr?.txId === completedTxId ? null : curr)
-        }, 2500)
-        return updated
-      })
-
-      if (ev.agentId) {
-        setAgents(prev => {
-          const existing = prev[ev.agentId] || {
-            id: ev.agentId, spendToday: 0, spendCap: 500,
-            rules: {}, status: 'alive' as const
-          }
-          const updated = { ...existing }
-          if (ev.rules) {
-            updated.rules = {
-              R1: ev.rules.r1?.pass ?? true,
-              R2: ev.rules.r2?.pass ?? true,
-              R3: ev.rules.r3?.pass ?? true,
-              R4: ev.rules.r4?.pass ?? true,
-              R5: ev.rules.r5?.pass ?? true,
-            }
-          }
-          if (ev.type === 'APPROVED') updated.spendToday += parseFloat(ev.value || '0')
-          return { ...prev, [ev.agentId]: updated }
-        })
-      }
-      return
-    }
-
-    // Revoked / swept
-    if (ev.type === 'REVOKED' || ev.type === 'SWEPT') {
-      if (ev.type === 'REVOKED') {
-        setStats(prev => ({ ...prev, revoked: prev.revoked + 1 }))
-        if (ev.agentId) {
-          setAgents(prev => ({
-            ...prev,
-            [ev.agentId]: {
-              ...(prev[ev.agentId] || { id: ev.agentId, spendToday: 0, spendCap: 500, rules: {} }),
-              status: 'revoked'
-            }
-          }))
-        }
-      }
-      setHistory(h => [{
-        txId: `${ev.type}-${ev.agentId}-${ev.timestamp}`,
-        agentId: ev.agentId || '',
-        to: ev.to || '',
-        value: '0',
-        intent: '',
-        status: ev.type.toLowerCase() as 'revoked' | 'swept',
-        failedRules: [],
-        allRules: {},
-        reason: ev.reason,
-        timestamp: ev.timestamp
-      }, ...h].slice(0, 50))
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-5 font-mono text-sm">
-
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-lg font-bold text-white tracking-tight">AgentWall</h1>
-          <p className="text-xs text-gray-500 mt-0.5">OWS execution firewall · Ethereum Sepolia</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <a href={logLink()} target="_blank" rel="noopener noreferrer"
-            className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2">
-            On-chain audit log ↗
-          </a>
-          <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full border ${connected ? 'border-green-800 text-green-400' : 'border-red-800 text-red-400'}`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-            {connected ? 'Firewall Online' : 'Connecting...'}
+          <div className="mt-8 font-mono text-xs text-gray-600 space-y-1">
+            <div>npm run dev:firewall &amp;&amp; npm run dev:dashboard</div>
+            <div>npm run dev:agent:multi</div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
-        {[
-          { label: 'Total txs',      value: stats.total,    color: 'text-white' },
-          { label: 'Approved',       value: stats.approved, color: 'text-green-400' },
-          { label: 'Blocked',        value: stats.blocked,  color: 'text-red-400' },
-          { label: 'Agents revoked', value: stats.revoked,  color: 'text-purple-400' },
-        ].map(s => (
-          <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-            <div className="text-xs text-gray-500 mb-1">{s.label}</div>
-            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+      {/* Footer */}
+      <footer className="border-t border-gray-800 py-8 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm text-gray-600 font-mono">
+            AgentWall · OWS Hackathon Track 02 · Ethereum Sepolia
           </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-
-        {/* Left column: live eval + agents */}
-        <div className="col-span-1 space-y-4">
-
-          <div>
-            <div className="text-xs text-gray-500 uppercase tracking-widest mb-2">Live Evaluation</div>
-            {liveEval
-              ? <LiveEvalCard ev={liveEval} />
-              : (
-                <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 text-center">
-                  <div className="text-gray-700 text-xs">Waiting for transaction...</div>
-                  <div className="text-gray-800 text-xs mt-1">Run an agent to see live rule evaluation</div>
-                </div>
-              )
-            }
-          </div>
-
-          <div>
-            <div className="text-xs text-gray-500 uppercase tracking-widest mb-2">Active Agents</div>
-            {Object.keys(agents).length === 0
-              ? <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 text-xs text-gray-700 text-center">No agents yet</div>
-              : Object.values(agents).map(a => <AgentCard key={a.id} agent={a} />)
-            }
-          </div>
-
-        </div>
-
-        {/* Right column: event history */}
-        <div className="col-span-2">
-          <div className="text-xs text-gray-500 uppercase tracking-widest mb-2">
-            Event History
-            <span className="ml-2 text-gray-700 normal-case">click any row to expand rule details</span>
-          </div>
-          <div className="space-y-2 max-h-[75vh] overflow-y-auto pr-1">
-            {history.length === 0
-              ? (
-                <div className="bg-gray-900 border border-gray-800 rounded-lg p-8 text-center">
-                  <div className="text-gray-700 text-xs">No events yet</div>
-                  <div className="text-gray-800 text-xs mt-1">npm run dev:agent:multi</div>
-                </div>
-              )
-              : history.map((ev, i) => <HistoryCard key={`${ev.txId}-${i}`} ev={ev} />)
-            }
+          <div className="flex items-center gap-6 text-sm text-gray-600">
+            <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">GitHub</a>
+            <a href={ETHERSCAN} target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">Contract</a>
+            <Link href={DASHBOARD} className="hover:text-gray-400 transition-colors">Dashboard</Link>
           </div>
         </div>
+      </footer>
 
-      </div>
     </div>
   )
 }
