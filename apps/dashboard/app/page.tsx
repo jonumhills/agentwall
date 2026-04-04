@@ -288,6 +288,7 @@ export default function AgentWallDashboard() {
   const [connected, setConnected] = useState(false)
   const ws = useRef<WebSocket | null>(null)
   const destroyed = useRef(false)
+  const seenTxIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     destroyed.current = false
@@ -323,6 +324,10 @@ export default function AgentWallDashboard() {
 
   function handle(ev: any) {
     if (ev.type === 'connected') return
+    // Global dedup — ref is synchronous, safe even with multiple WS connections
+    const dedupKey = ev.txId || `${ev.type}-${ev.agentId}-${ev.timestamp}`
+    if (seenTxIds.current.has(dedupKey)) return
+    seenTxIds.current.add(dedupKey)
 
       // New tx starting evaluation
     if (ev.type === 'EVALUATING') {
@@ -402,11 +407,7 @@ export default function AgentWallDashboard() {
           txHash: updated.txHash,
           timestamp: updated.timestamp
         }
-        setHistory(h => {
-          // Deduplicate by txId — drop if already in history
-          if (h.some(e => e.txId === historyEntry.txId)) return h
-          return [historyEntry, ...h].slice(0, 50)
-        })
+        setHistory(h => [historyEntry, ...h].slice(0, 50))
         setTimeout(() => {
           setLiveEval(curr => curr?.txId === completedTxId ? null : curr)
         }, 2500)
@@ -450,11 +451,8 @@ export default function AgentWallDashboard() {
           }))
         }
       }
-      const revokeId = `${ev.type}-${ev.agentId}-${ev.timestamp}`
-      setHistory(h => {
-        if (h.some(e => e.txId === revokeId)) return h
-        return [{
-        txId: revokeId,
+      setHistory(h => [{
+        txId: `${ev.type}-${ev.agentId}-${ev.timestamp}`,
         agentId: ev.agentId || '',
         to: ev.to || '',
         value: '0',
@@ -464,8 +462,7 @@ export default function AgentWallDashboard() {
         allRules: {},
         reason: ev.reason,
         timestamp: ev.timestamp
-      }, ...h].slice(0, 50)
-      })
+      }, ...h].slice(0, 50))
     }
   }
 
