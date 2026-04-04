@@ -41,7 +41,7 @@ Each agent is configured independently in `agentwall.config.json`:
 
 🔗 [On-chain audit log — Ethereum Sepolia](https://sepolia.etherscan.io/address/0x26be9840C28B8b4FE5c4CdF7c0367B03dF6cB341#events)
 
-![LandingPage](assets/LadningPage.png)
+![LandingPage](assets/LandingPage.png)
 
 ---
 
