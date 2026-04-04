@@ -141,6 +141,17 @@ async function runMultiAgent() {
   console.log('[PayrollBot-01] ☠  Agent silent — watch dashboard for REVOKED event in ~60s')
 }
 
+async function runZombie() {
+  // ZombieBot never registers a heartbeat — R3 blocks it immediately
+  console.log('\n[ZombieBot] Starting with NO heartbeat registered...')
+  await sendTx('ZombieBot', {
+    to: KNOWN_ADDRESS,
+    value: '100',
+    intent: 'Transfer funds to operations wallet',
+    label: 'ZombieBot tx with no heartbeat — R3 should BLOCK'
+  })
+}
+
 async function runDead() {
   // TradingBot-01 goes silent — dead man's switch fires after timeout
   const agentId = 'TradingBot-01'
@@ -154,7 +165,7 @@ async function runDead() {
 
 // --- CLI entry ---
 const mode = process.argv[2] || 'normal'
-const modes = { normal: runNormal, attack: runAttack, overflow: runOverflow, multi: runMultiAgent, dead: runDead }
+const modes = { normal: runNormal, attack: runAttack, overflow: runOverflow, multi: runMultiAgent, dead: runDead, zombie: runZombie }
 
 if (!modes[mode]) {
   console.error(`Unknown mode: ${mode}. Use: normal | attack | overflow | multi | dead`)

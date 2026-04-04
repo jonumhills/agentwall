@@ -7,7 +7,8 @@
     "attack": "node src/agent.js attack",
     "overflow": "node src/agent.js overflow",
     "multi": "node src/agent.js multi",
-    "dead": "node src/agent.js dead"
+    "dead": "node src/agent.js dead",
+    "zombie": "node src/agent.js zombie"
   },
   "dependencies": {
     "dotenv": "^16.4.0"

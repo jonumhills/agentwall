@@ -10,6 +10,7 @@
     "dev:agent:attack": "cd packages/mock-agent && npm run attack",
     "dev:agent:multi": "cd packages/mock-agent && npm run multi",
     "dev:agent:dead": "cd packages/mock-agent && npm run dead",
+    "dev:agent:zombie": "cd packages/mock-agent && npm run zombie",
     "deploy:contract": "cd packages/contracts && npm run deploy",
     "install:all": "npm install && cd packages/firewall && npm install && cd ../contracts && npm install && cd ../mock-agent && npm install && cd ../../apps/dashboard && npm install"
   }
