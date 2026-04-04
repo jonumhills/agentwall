@@ -104,8 +104,12 @@ async function runMultiAgent() {
   console.log('  MULTI-AGENT DEMO — 3 agents, 1 firewall')
   console.log('='.repeat(55))
 
+  // Wait for heartbeats to register before sending any tx
+  await new Promise(r => setTimeout(r, 1500))
+
   // Bot 1: TradingBot — normal payment, all rules pass
   const hb1 = startHeartbeat('TradingBot-01')
+  await new Promise(r => setTimeout(r, 500)) // let heartbeat land first
   await sendTx('TradingBot-01', {
     to: KNOWN_ADDRESS,
     value: '50',
@@ -118,6 +122,7 @@ async function runMultiAgent() {
 
   // Bot 2: SupportBot — over its $100 spend cap
   const hb2 = startHeartbeat('SupportBot-01')
+  await new Promise(r => setTimeout(r, 500)) // let heartbeat land first
   await sendTx('SupportBot-01', {
     to: KNOWN_ADDRESS,
     value: '200',

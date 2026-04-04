@@ -402,7 +402,11 @@ export default function AgentWallDashboard() {
           txHash: updated.txHash,
           timestamp: updated.timestamp
         }
-        setHistory(h => [historyEntry, ...h].slice(0, 50))
+        setHistory(h => {
+          // Deduplicate by txId — drop if already in history
+          if (h.some(e => e.txId === historyEntry.txId)) return h
+          return [historyEntry, ...h].slice(0, 50)
+        })
         setTimeout(() => {
           setLiveEval(curr => curr?.txId === completedTxId ? null : curr)
         }, 2500)
@@ -446,8 +450,11 @@ export default function AgentWallDashboard() {
           }))
         }
       }
-      setHistory(h => [{
-        txId: `${ev.type}-${ev.timestamp}`,
+      const revokeId = `${ev.type}-${ev.agentId}-${ev.timestamp}`
+      setHistory(h => {
+        if (h.some(e => e.txId === revokeId)) return h
+        return [{
+        txId: revokeId,
         agentId: ev.agentId || '',
         to: ev.to || '',
         value: '0',
@@ -457,7 +464,8 @@ export default function AgentWallDashboard() {
         allRules: {},
         reason: ev.reason,
         timestamp: ev.timestamp
-      }, ...h].slice(0, 50))
+      }, ...h].slice(0, 50)
+      })
     }
   }
 
