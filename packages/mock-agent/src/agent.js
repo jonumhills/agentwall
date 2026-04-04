@@ -104,40 +104,36 @@ async function runMultiAgent() {
   console.log('  MULTI-AGENT DEMO — 3 agents, 1 firewall')
   console.log('='.repeat(55))
 
-  const agents = [
-    {
-      id: 'TradingBot-01',
-      to: KNOWN_ADDRESS,
-      value: '50',
-      intent: 'Pay Acme Corp supplier invoice #1042',
-      label: 'TradingBot $50 (cap: $500) ← should PASS'
-    },
-    {
-      id: 'SupportBot-01',
-      to: KNOWN_ADDRESS,
-      value: '200',
-      intent: 'Refund customer overpayment',
-      label: 'SupportBot $200 (cap: $100) ← R2 should BLOCK'
-    },
-    {
-      id: 'PayrollBot-01',
-      to: KNOWN_ADDRESS,
-      value: '4999',
-      intent: 'Monthly payroll disbursement to team wallet',
-      label: 'PayrollBot $4999 (cap: $5000) ← should PASS'
-    }
-  ]
+  // Bot 1: TradingBot — normal payment, all rules pass
+  const hb1 = startHeartbeat('TradingBot-01')
+  await sendTx('TradingBot-01', {
+    to: KNOWN_ADDRESS,
+    value: '50',
+    intent: 'Pay Acme Corp supplier invoice #1042 for Q1 services',
+    label: 'TradingBot $50 (cap: $500) ← should PASS'
+  })
+  clearInterval(hb1)
 
-  // Register heartbeats for all agents
-  const heartbeats = agents.map(a => startHeartbeat(a.id))
+  await new Promise(r => setTimeout(r, 800))
 
-  // Fire all 3 sequentially so output is readable
-  for (const a of agents) {
-    await sendTx(a.id, { to: a.to, value: a.value, intent: a.intent, label: a.label })
-    await new Promise(r => setTimeout(r, 500))
-  }
+  // Bot 2: SupportBot — over its $100 spend cap
+  const hb2 = startHeartbeat('SupportBot-01')
+  await sendTx('SupportBot-01', {
+    to: KNOWN_ADDRESS,
+    value: '200',
+    intent: 'Refund customer overpayment to their wallet',
+    label: 'SupportBot $200 (cap: $100) ← R2 BLOCKS'
+  })
+  clearInterval(hb2)
 
-  heartbeats.forEach(h => clearInterval(h))
+  await new Promise(r => setTimeout(r, 800))
+
+  // Bot 3: PayrollBot — registers heartbeat then goes SILENT → Dead Man's Switch fires
+  console.log('\n[PayrollBot-01] Starting up — sending one heartbeat then going silent...')
+  const hb3 = startHeartbeat('PayrollBot-01')
+  await new Promise(r => setTimeout(r, 1000)) // let heartbeat register
+  clearInterval(hb3)
+  console.log('[PayrollBot-01] ☠  Agent silent — watch dashboard for REVOKED event in ~60s')
 }
 
 async function runDead() {
