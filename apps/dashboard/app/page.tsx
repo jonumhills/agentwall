@@ -4,36 +4,34 @@ const GITHUB = 'https://github.com/jonumhills/agentwall'
 const DASHBOARD = '/dashboard'
 const ETHERSCAN = 'https://sepolia.etherscan.io/address/0x26be9840C28B8b4FE5c4CdF7c0367B03dF6cB341#events'
 
+// #D4622A — the warm burnt-orange from the reference image
+const OG = '#D4622A'
+
 const rules = [
   {
     id: 'R1', name: 'Allowlist', icon: '🔐',
     desc: 'Every recipient address is checked against a per-agent approved list. Unknown addresses are blocked instantly.',
     example: 'Burn address → BLOCKED',
-    border: 'border-orange-200', badge: 'bg-orange-100 text-orange-700',
   },
   {
     id: 'R2', name: 'Spend Cap', icon: '💰',
     desc: 'Each agent has its own daily spend limit. Transactions that exceed the cap are blocked regardless of other rules.',
     example: '$200 tx, $100 cap → BLOCKED',
-    border: 'border-green-200', badge: 'bg-green-100 text-green-700',
   },
   {
     id: 'R3', name: 'Liveness', icon: '♥',
-    desc: 'Agents must send a heartbeat every 60s. No heartbeat = no signing. Silence triggers Dead Man\'s Switch.',
+    desc: "Agents must send a heartbeat every 60s. No heartbeat = no signing. Silence triggers Dead Man's Switch.",
     example: 'No heartbeat → REVOKED',
-    border: 'border-red-200', badge: 'bg-red-100 text-red-700',
   },
   {
     id: 'R4', name: 'Intent Verification', icon: '🤖',
-    desc: 'Claude reads the agent\'s stated intent and verifies it matches the actual transaction — semantically, not syntactically.',
+    desc: "Claude reads the agent's stated intent and verifies it matches the actual transaction — semantically, not syntactically.",
     example: '"Pay supplier" → burn address → BLOCKED',
-    border: 'border-violet-200', badge: 'bg-violet-100 text-violet-700',
   },
   {
     id: 'R5', name: 'Anomaly Detection', icon: '📊',
-    desc: 'Flags amounts 5× above an agent\'s baseline or off-hours transfers to new recipients.',
+    desc: "Flags amounts 5× above an agent's baseline or off-hours transfers to new recipients.",
     example: 'Usual $50 → sudden $5,000 → BLOCKED',
-    border: 'border-amber-200', badge: 'bg-amber-100 text-amber-700',
   },
 ]
 
@@ -54,12 +52,15 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 backdrop-blur-sm bg-[#0a0f0a]/80 border-b border-white/5">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <span className="font-mono font-bold text-white tracking-tight text-lg">AgentWall</span>
+          <span className="font-mono font-black tracking-tight text-lg" style={{ color: OG }}>
+            AgentWall
+          </span>
           <div className="flex items-center gap-4">
             <a href={GITHUB} target="_blank" rel="noopener noreferrer"
               className="text-sm text-gray-400 hover:text-white transition-colors font-medium">GitHub</a>
             <Link href={DASHBOARD}
-              className="text-sm bg-white text-gray-950 px-4 py-1.5 rounded-full font-semibold hover:bg-gray-200 transition-colors shadow-sm">
+              className="text-sm font-semibold px-4 py-1.5 rounded-full transition-colors shadow-sm"
+              style={{ backgroundColor: OG, color: '#fff' }}>
               Live Dashboard →
             </Link>
           </div>
@@ -73,12 +74,14 @@ export default function LandingPage() {
           OWS Hackathon · Track 02 · Agent Spend Governance &amp; Identity
         </div>
 
-        <h1 className="text-5xl sm:text-7xl font-black text-white tracking-tight leading-none mb-4"
-          style={{ fontFamily: 'system-ui, sans-serif' }}>
+        <h1
+          className="text-5xl sm:text-7xl font-black tracking-tight leading-none mb-4"
+          style={{ color: OG, fontFamily: 'system-ui, sans-serif' }}
+        >
           AgentWall
         </h1>
 
-        <p className="text-xl sm:text-2xl font-bold text-gray-400 mb-6">
+        <p className="text-xl sm:text-2xl font-bold text-gray-300 mb-6">
           Execution Firewall for OWS Wallets
         </p>
 
@@ -89,7 +92,8 @@ export default function LandingPage() {
 
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <Link href={DASHBOARD}
-            className="bg-white text-gray-950 px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition-colors shadow-md">
+            className="font-semibold px-6 py-3 rounded-full transition-colors shadow-md text-white"
+            style={{ backgroundColor: OG }}>
             View Live Dashboard →
           </Link>
           <a href={GITHUB} target="_blank" rel="noopener noreferrer"
@@ -103,26 +107,28 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Flow */}
+      {/* Flow diagram */}
       <section className="py-10 px-6">
         <div className="max-w-3xl mx-auto">
-          <div className="bg-gray-900/80 border border-gray-800 rounded-2xl px-6 py-5 flex flex-wrap items-center justify-center gap-2 text-sm font-mono">
+          <div className="bg-gray-900/80 border border-gray-800 rounded-2xl px-6 py-5 flex flex-wrap items-center justify-center gap-2 font-mono">
             {[
-              { label: 'AI Agent', cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
+              { label: 'AI Agent',       cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
               { label: '→' },
               { label: 'POST /api/sign', cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
               { label: '→' },
-              { label: 'AgentWall ✦', cls: 'bg-white text-gray-950 font-bold' },
+              { label: 'AgentWall ✦',   cls: '', orange: true },
               { label: '→' },
-              { label: '5 Rules', cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
+              { label: '5 Rules',        cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
               { label: '→' },
-              { label: 'OWS Vault', cls: 'bg-green-900 border border-green-700 text-green-300' },
+              { label: 'OWS Vault',      cls: 'bg-green-900 border border-green-700 text-green-300' },
               { label: '→' },
-              { label: 'Ethereum', cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
+              { label: 'Ethereum',       cls: 'bg-gray-800 text-gray-300 border border-gray-700' },
             ].map((item, i) =>
               item.label === '→'
                 ? <span key={i} className="text-gray-600 text-base">→</span>
-                : <span key={i} className={`px-3 py-1.5 rounded-lg text-xs ${item.cls || ''}`}>{item.label}</span>
+                : item.orange
+                  ? <span key={i} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: OG }}>{item.label}</span>
+                  : <span key={i} className={`px-3 py-1.5 rounded-lg text-xs ${item.cls}`}>{item.label}</span>
             )}
           </div>
           <p className="text-center text-gray-600 text-xs mt-3 font-medium">
@@ -144,11 +150,15 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {rules.map((rule) => (
               <div key={rule.id}
-                className="bg-gray-900/80 border border-gray-800 rounded-2xl p-5 hover:border-gray-600 transition-colors">
+                className="bg-gray-900/80 border border-gray-800 rounded-2xl p-5 hover:border-gray-600 transition-colors group">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-2xl">{rule.icon}</span>
                   <div>
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">{rule.id}</span>
+                    <span
+                      className="text-xs font-mono font-bold px-2 py-0.5 rounded-full text-white"
+                      style={{ backgroundColor: OG }}>
+                      {rule.id}
+                    </span>
                     <h3 className="text-white font-bold text-sm mt-0.5">{rule.name}</h3>
                   </div>
                 </div>
@@ -161,10 +171,10 @@ export default function LandingPage() {
           </div>
 
           {/* R4 callout */}
-          <div className="mt-5 bg-violet-950/50 border border-violet-800 rounded-2xl p-5 flex gap-4">
+          <div className="mt-5 bg-gray-900/80 border rounded-2xl p-5 flex gap-4" style={{ borderColor: OG + '55' }}>
             <span className="text-2xl">🤖</span>
             <div>
-              <h3 className="text-violet-300 font-bold mb-1 text-sm">R4 — Claude reads the agent's intent</h3>
+              <h3 className="font-bold mb-1 text-sm" style={{ color: OG }}>R4 — Claude reads the agent's intent</h3>
               <p className="text-gray-400 text-sm leading-relaxed">
                 Rule 4 uses Claude to verify that what an agent <em>says</em> it's doing actually matches what the transaction <em>does</em>.
                 Prompt injection at the tool layer becomes irrelevant when the wallet layer catches it.
@@ -180,7 +190,9 @@ export default function LandingPage() {
           <div className="bg-gray-900/80 border border-gray-800 rounded-3xl p-8 md:p-10">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
               <div>
-                <span className="text-xs font-mono font-bold text-rose-500 uppercase tracking-widest">Dead Man's Switch</span>
+                <span className="text-xs font-mono font-bold uppercase tracking-widest" style={{ color: OG }}>
+                  Dead Man's Switch
+                </span>
                 <h2 className="text-2xl font-black text-white mt-2 mb-3">Silence = Lockdown</h2>
                 <p className="text-gray-400 text-sm leading-relaxed mb-5">
                   Every agent must heartbeat every 60 seconds. Go silent — crashed, hijacked, or killed —
@@ -189,28 +201,32 @@ export default function LandingPage() {
                 <div className="space-y-2">
                   {[
                     'Agent stops heartbeating',
-                    'Dead Man\'s Switch fires after timeout',
+                    "Dead Man's Switch fires after timeout",
                     'OWS token revoked — can never sign again',
                     'Funds swept to recovery wallet',
                     'REVOKED + SWEPT written on-chain',
                   ].map((step, i) => (
                     <div key={i} className="flex items-start gap-3">
-                      <span className="w-5 h-5 rounded-full bg-rose-950 border border-rose-800 text-rose-400 text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">{i + 1}</span>
+                      <span
+                        className="w-5 h-5 rounded-full text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold"
+                        style={{ backgroundColor: OG }}>
+                        {i + 1}
+                      </span>
                       <span className="text-sm text-gray-300">{step}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="bg-green-950 border border-green-800 rounded-2xl p-5 font-mono text-xs space-y-1.5">
-                <div className="text-green-600"># firewall logs</div>
+              <div className="bg-gray-950 border border-gray-800 rounded-2xl p-5 font-mono text-xs space-y-1.5">
+                <div className="text-gray-600"># firewall logs</div>
                 <div className="text-green-400">[PayrollAgent-01] ♥ heartbeat sent</div>
                 <div className="text-green-400">[PayrollAgent-01] ♥ heartbeat sent</div>
-                <div className="text-green-700">... 5s of silence ...</div>
+                <div className="text-gray-600">... 5s of silence ...</div>
                 <div className="text-red-400">[DeadManSwitch] PayrollAgent-01 went silent</div>
                 <div className="text-red-400">[DeadManSwitch] Revoking OWS token...</div>
                 <div className="text-amber-400">[Chain] REVOKED logged on-chain</div>
                 <div className="text-amber-400">[Chain] SWEPT logged on-chain</div>
-                <div className="text-green-600 mt-2"># dashboard shows:</div>
+                <div className="text-gray-600 mt-2"># dashboard shows:</div>
                 <div className="text-red-300">☠ REVOKED  PayrollAgent-01</div>
                 <div className="text-amber-300">↩ SWEPT    → 0xE8999...024</div>
               </div>
@@ -222,20 +238,22 @@ export default function LandingPage() {
       {/* Per-agent config */}
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto text-center">
-          <span className="text-xs font-mono font-bold text-emerald-500 uppercase tracking-widest">Per-Agent Governance</span>
+          <span className="text-xs font-mono font-bold uppercase tracking-widest" style={{ color: OG }}>
+            Per-Agent Governance
+          </span>
           <h2 className="text-2xl font-black text-white mt-2 mb-3">One firewall. Any number of agents.</h2>
           <p className="text-gray-500 max-w-xl mx-auto text-sm mb-8">
             Each agent gets its own wallet, spend cap, allowlist, and heartbeat timeout. One config file.
           </p>
-          <div className="bg-green-950 border border-green-800 rounded-2xl p-6 text-left font-mono text-xs shadow-sm">
-            <div className="text-green-600 mb-3"># agentwall.config.json</div>
-            <div className="space-y-1 text-green-300">
+          <div className="bg-gray-950 border border-gray-800 rounded-2xl p-6 text-left font-mono text-xs">
+            <div className="text-gray-600 mb-3"># agentwall.config.json</div>
+            <div className="space-y-1 text-gray-300">
               <div>{'{'}</div>
-              <div className="pl-4 text-green-400">"agents": {'{'}</div>
-              <div className="pl-8"><span className="text-amber-400">"TradingAgent-01"</span><span className="text-green-400">: {'{ '}</span><span className="text-sky-400">"spendCapUSDC"</span><span className="text-green-400">: </span><span className="text-orange-400">500</span><span className="text-green-400">, </span><span className="text-sky-400">"allowedChains"</span><span className="text-green-400">: [</span><span className="text-orange-400">"eip155:11155111"</span><span className="text-green-400">] {'}'}</span></div>
-              <div className="pl-8"><span className="text-amber-400">"SupportAgent-01"</span><span className="text-green-400">: {'{ '}</span><span className="text-sky-400">"spendCapUSDC"</span><span className="text-green-400">: </span><span className="text-orange-400">100</span><span className="text-green-400">, </span><span className="text-sky-400">"heartbeatTimeoutMs"</span><span className="text-green-400">: </span><span className="text-orange-400">5000</span><span className="text-green-400"> {'}'}</span></div>
-              <div className="pl-8"><span className="text-amber-400">"PayrollAgent-01"</span><span className="text-green-400">: {'{ '}</span><span className="text-sky-400">"spendCapUSDC"</span><span className="text-green-400">: </span><span className="text-orange-400">5000</span><span className="text-green-400">, </span><span className="text-sky-400">"owsWallet"</span><span className="text-green-400">: </span><span className="text-orange-400">"payroll-wallet"</span><span className="text-green-400"> {'}'}</span></div>
-              <div className="pl-4 text-green-400">{'}'}</div>
+              <div className="pl-4 text-gray-400">"agents": {'{'}</div>
+              <div className="pl-8"><span className="text-amber-400">"TradingAgent-01"</span><span className="text-gray-400">: {'{ '}</span><span className="text-sky-400">"spendCapUSDC"</span><span className="text-gray-400">: </span><span style={{ color: OG }}>500</span><span className="text-gray-400">, </span><span className="text-sky-400">"allowedChains"</span><span className="text-gray-400">: [</span><span style={{ color: OG }}>"eip155:11155111"</span><span className="text-gray-400">] {'}'}</span></div>
+              <div className="pl-8"><span className="text-amber-400">"SupportAgent-01"</span><span className="text-gray-400">: {'{ '}</span><span className="text-sky-400">"spendCapUSDC"</span><span className="text-gray-400">: </span><span style={{ color: OG }}>100</span><span className="text-gray-400">, </span><span className="text-sky-400">"heartbeatTimeoutMs"</span><span className="text-gray-400">: </span><span style={{ color: OG }}>5000</span><span className="text-gray-400"> {'}'}</span></div>
+              <div className="pl-8"><span className="text-amber-400">"PayrollAgent-01"</span><span className="text-gray-400">: {'{ '}</span><span className="text-sky-400">"spendCapUSDC"</span><span className="text-gray-400">: </span><span style={{ color: OG }}>5000</span><span className="text-gray-400">, </span><span className="text-sky-400">"owsWallet"</span><span className="text-gray-400">: </span><span style={{ color: OG }}>"payroll-wallet"</span><span className="text-gray-400"> {'}'}</span></div>
+              <div className="pl-4 text-gray-400">{'}'}</div>
               <div>{'}'}</div>
             </div>
           </div>
@@ -251,7 +269,8 @@ export default function LandingPage() {
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link href={DASHBOARD}
-              className="bg-white text-gray-950 px-7 py-3 rounded-full font-bold hover:bg-gray-200 transition-colors shadow-md text-sm">
+              className="font-bold px-7 py-3 rounded-full transition-colors shadow-md text-sm text-white"
+              style={{ backgroundColor: OG }}>
               Open Dashboard →
             </Link>
             <a href={GITHUB} target="_blank" rel="noopener noreferrer"
@@ -269,7 +288,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-white/5 py-8 px-6">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-gray-600 font-mono">
+          <div className="font-mono text-xs font-bold" style={{ color: OG }}>
             AgentWall · OWS Hackathon Track 02 · Ethereum Sepolia
           </div>
           <div className="flex items-center gap-5 text-xs text-gray-600">
