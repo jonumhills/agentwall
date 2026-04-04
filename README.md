@@ -1,20 +1,12 @@
 # AgentWall — Firewall on OpenWallet
 
-Every transaction an AI agent tries to sign must pass through AgentWall first. Any rule fails — the key never decrypts.
+Every transaction an AI agent tries to sign must pass through AgentWall first. Any rule fails the key never decrypts.
 
 ---
 
 ## Architecture
 
-```
-┌─────────────┐          ┌──────────────────────┐          ┌─────────────┐
-│             │          │                      │          │             │
-│   AI Agent  │ ───────▶ │      AgentWall        │ ───────▶ │  OWS Vault  │
-│             │          │      (5 rules)        │          │             │
-└─────────────┘          └──────────────────────┘          └─────────────┘
-  POST /api/sign               firewall layer               signs & executes
-```
-
+![Dashboard](assets/Architecture.png)
 ---
 
 ## Policies
@@ -48,6 +40,8 @@ Each agent is configured independently in `agentwall.config.json`:
 🐦 [X post](https://x.com/Jonumhills_/status/2040315599985754408?s=20)
 
 🔗 [On-chain audit log — Ethereum Sepolia](https://sepolia.etherscan.io/address/0x26be9840C28B8b4FE5c4CdF7c0367B03dF6cB341#events)
+
+![LandingPage](assets/LadningPage.png)
 
 ---
 
