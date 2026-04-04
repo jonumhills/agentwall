@@ -142,13 +142,13 @@ async function runMultiAgent() {
 }
 
 async function runZombie() {
-  // ZombieBot never registers a heartbeat — R3 blocks it immediately
-  console.log('\n[ZombieBot] Starting with NO heartbeat registered...')
-  await sendTx('ZombieBot', {
+  // TradingBot-02 never registers a heartbeat — R3 blocks it immediately
+  console.log('\n[TradingBot-02] Starting with NO heartbeat registered...')
+  await sendTx('TradingBot-02', {
     to: KNOWN_ADDRESS,
     value: '100',
     intent: 'Transfer funds to operations wallet',
-    label: 'ZombieBot tx with no heartbeat — R3 should BLOCK'
+    label: 'TradingBot-02 tx with no heartbeat — R3 should BLOCK'
   })
 }
 
