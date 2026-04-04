@@ -287,16 +287,38 @@ export default function AgentWallDashboard() {
   const [stats, setStats]         = useState({ total: 0, approved: 0, blocked: 0, revoked: 0 })
   const [connected, setConnected] = useState(false)
   const ws = useRef<WebSocket | null>(null)
+  const destroyed = useRef(false)
 
   useEffect(() => {
+    destroyed.current = false
+
     function connect() {
+      if (destroyed.current) return
+      // Close any existing connection before opening a new one
+      if (ws.current && ws.current.readyState < 2) {
+        ws.current.onclose = null
+        ws.current.close()
+      }
       ws.current = new WebSocket(WS_URL)
-      ws.current.onopen  = () => setConnected(true)
-      ws.current.onclose = () => { setConnected(false); setTimeout(connect, 3000) }
-      ws.current.onmessage = (msg) => handle(JSON.parse(msg.data))
+      ws.current.onopen  = () => { if (!destroyed.current) setConnected(true) }
+      ws.current.onclose = () => {
+        if (destroyed.current) return
+        setConnected(false)
+        setTimeout(connect, 3000)
+      }
+      ws.current.onmessage = (msg) => {
+        if (!destroyed.current) handle(JSON.parse(msg.data))
+      }
     }
+
     connect()
-    return () => ws.current?.close()
+    return () => {
+      destroyed.current = true
+      if (ws.current) {
+        ws.current.onclose = null
+        ws.current.close()
+      }
+    }
   }, [])
 
   function handle(ev: any) {
