@@ -2,6 +2,7 @@ import express from 'express'
 import { WebSocketServer } from 'ws'
 import { createFirewallRouter } from './router.js'
 import { startHeartbeatDaemon, agentKeyRegistry } from './heartbeat.js'
+import { spendLedger, auditLog } from './firewall.js'
 import dotenv from 'dotenv'
 dotenv.config({ path: '../../.env' })
 
@@ -18,6 +19,15 @@ export { wss }
 
 // Routes
 app.use('/api', createFirewallRouter())
+
+// Reset spend ledger between demo runs
+app.post('/reset', (req, res) => {
+  Object.keys(spendLedger).forEach(k => delete spendLedger[k])
+  auditLog.length = 0
+  global.heartbeats = {}
+  console.log('[AgentWall] Spend ledger + audit log reset')
+  res.json({ ok: true, message: 'Ledger reset' })
+})
 
 // Heartbeat endpoint for agents
 app.post('/heartbeat', (req, res) => {

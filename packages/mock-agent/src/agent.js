@@ -92,7 +92,14 @@ async function runOverflow() {
 }
 
 async function runMultiAgent() {
-  // Show 3 agents with different caps/rules firing at the same firewall
+  // Reset spend ledger so demo is clean each run
+  try {
+    await fetch(`${FIREWALL_URL}/reset`, { method: 'POST' })
+    console.log('[Demo] Spend ledger reset ✓')
+  } catch (e) {
+    console.warn('[Demo] Could not reset ledger — firewall may not be running')
+  }
+
   console.log('\n' + '='.repeat(55))
   console.log('  MULTI-AGENT DEMO — 3 agents, 1 firewall')
   console.log('='.repeat(55))

@@ -302,7 +302,7 @@ export default function AgentWallDashboard() {
   function handle(ev: any) {
     if (ev.type === 'connected') return
 
-    // New tx starting evaluation
+      // New tx starting evaluation
     if (ev.type === 'EVALUATING') {
       setLiveEval({
         txId: ev.txId, agentId: ev.agentId, chain: ev.chain,
@@ -311,6 +311,16 @@ export default function AgentWallDashboard() {
         status: 'evaluating',
         timestamp: ev.timestamp
       })
+      // Update agent spend cap from server-provided value
+      if (ev.agentId && ev.spendCap) {
+        setAgents(prev => ({
+          ...prev,
+          [ev.agentId]: {
+            ...(prev[ev.agentId] || { id: ev.agentId, spendToday: 0, rules: {}, status: 'alive' as const }),
+            spendCap: ev.spendCap
+          }
+        }))
+      }
       return
     }
 
@@ -356,21 +366,23 @@ export default function AgentWallDashboard() {
           txHash: ev.txHash,
           rules
         }
-        // Move to history after 2.5s so user can read the result
+        // Move to history after 2.5s — only clear liveEval if txId still matches
+        const completedTxId = updated.txId
+        const historyEntry: HistoryEvent = {
+          txId: updated.txId,
+          agentId: updated.agentId,
+          to: updated.to,
+          value: updated.value,
+          intent: updated.intent,
+          status: updated.status as 'approved' | 'blocked',
+          failedRules: ev.failedRules || [],
+          allRules: ev.rules || {},
+          txHash: updated.txHash,
+          timestamp: updated.timestamp
+        }
+        setHistory(h => [historyEntry, ...h].slice(0, 50))
         setTimeout(() => {
-          setHistory(h => [{
-            txId: updated.txId,
-            agentId: updated.agentId,
-            to: updated.to,
-            value: updated.value,
-            intent: updated.intent,
-            status: updated.status as 'approved' | 'blocked',
-            failedRules: ev.failedRules || [],
-            allRules: ev.rules || {},
-            txHash: updated.txHash,
-            timestamp: updated.timestamp
-          }, ...h].slice(0, 50))
-          setLiveEval(null)
+          setLiveEval(curr => curr?.txId === completedTxId ? null : curr)
         }, 2500)
         return updated
       })

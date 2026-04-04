@@ -19,6 +19,7 @@ export function createFirewallRouter() {
     const txId = `${agentId}-${Date.now()}`
 
     // Broadcast that evaluation is starting — dashboard shows pending card
+    const agentCfgForBroadcast = getAgentConfig(agentId)
     broadcastEvent({
       type: 'EVALUATING',
       txId,
@@ -27,6 +28,7 @@ export function createFirewallRouter() {
       to,
       value: value || '0',
       intent,
+      spendCap: agentCfgForBroadcast.spendCapUSDC,
       timestamp: Date.now()
     })
 
