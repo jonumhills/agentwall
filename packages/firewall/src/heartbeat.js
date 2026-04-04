@@ -3,7 +3,7 @@ import { broadcastEvent } from './ws.js'
 import { writeAuditLog } from './chain.js'
 import { getAgentConfig, listAgents } from './registry.js'
 
-const CHECK_INTERVAL_MS = 30000 // check every 30s
+const CHECK_INTERVAL_MS = parseInt(process.env.HEARTBEAT_CHECK_MS || '30000')
 const revokedAgents = new Set()
 
 // Registry: agentId → OWS API key ID (populated on heartbeat)
