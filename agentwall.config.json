@@ -1,31 +1,40 @@
 {
   "agents": {
-    "TradingBot-01": {
+    "TradingAgent-01": {
       "owsWallet": "AgentWallet",
       "owsToken": "",
       "owsKeyId": "",
       "allowedChains": ["eip155:11155111"],
       "spendCapUSDC": 500,
       "allowlist": ["0xE8999724879718f1FB6396D16dF7D11fc83BA024"],
-      "heartbeatTimeoutMs": 300000
+      "heartbeatTimeoutMs": 5000
     },
-    "PayrollBot-01": {
-      "owsWallet": "AgentWallet",
-      "owsToken": "",
-      "owsKeyId": "",
-      "allowedChains": ["eip155:11155111"],
-      "spendCapUSDC": 5000,
-      "allowlist": ["0xE8999724879718f1FB6396D16dF7D11fc83BA024"],
-      "heartbeatTimeoutMs": 300000
-    },
-    "SupportBot-01": {
+    "SupportAgent-01": {
       "owsWallet": "AgentWallet",
       "owsToken": "",
       "owsKeyId": "",
       "allowedChains": ["eip155:11155111"],
       "spendCapUSDC": 100,
       "allowlist": ["0xE8999724879718f1FB6396D16dF7D11fc83BA024"],
-      "heartbeatTimeoutMs": 300000
+      "heartbeatTimeoutMs": 5000
+    },
+    "AttackAgent": {
+      "owsWallet": "AgentWallet",
+      "owsToken": "",
+      "owsKeyId": "",
+      "allowedChains": ["eip155:11155111"],
+      "spendCapUSDC": 500,
+      "allowlist": ["0xE8999724879718f1FB6396D16dF7D11fc83BA024"],
+      "heartbeatTimeoutMs": 5000
+    },
+    "PayrollAgent-01": {
+      "owsWallet": "AgentWallet",
+      "owsToken": "",
+      "owsKeyId": "",
+      "allowedChains": ["eip155:11155111"],
+      "spendCapUSDC": 5000,
+      "allowlist": ["0xE8999724879718f1FB6396D16dF7D11fc83BA024"],
+      "heartbeatTimeoutMs": 5000
     }
   }
 }

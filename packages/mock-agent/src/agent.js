@@ -48,9 +48,9 @@ async function sendTx(agentId, { to, value, intent, label }) {
 // --- Demo modes ---
 
 async function runNormal() {
-  const hb = startHeartbeat('TradingBot-01')
+  const hb = startHeartbeat('TradingAgent-01')
   await delay(1000)
-  await sendTx('TradingBot-01', {
+  await sendTx('TradingAgent-01', {
     to: KNOWN_ADDRESS, value: '50',
     intent: 'Pay Acme Corp supplier invoice #1042 for Q1 services',
     label: 'Normal $50 supplier payment'
@@ -59,9 +59,9 @@ async function runNormal() {
 }
 
 async function runAttack() {
-  const hb = startHeartbeat('TradingBot-01')
+  const hb = startHeartbeat('TradingAgent-01')
   await delay(1000)
-  await sendTx('TradingBot-01', {
+  await sendTx('TradingAgent-01', {
     to: EVIL_ADDRESS, value: '200',
     intent: 'Pay Acme Corp supplier invoice #1042 for Q1 services',
     label: 'ATTACK: evil address with legit-sounding intent'
@@ -70,9 +70,9 @@ async function runAttack() {
 }
 
 async function runOverflow() {
-  const hb = startHeartbeat('SupportBot-01')
+  const hb = startHeartbeat('SupportAgent-01')
   await delay(1000)
-  await sendTx('SupportBot-01', {
+  await sendTx('SupportAgent-01', {
     to: KNOWN_ADDRESS, value: '200',
     intent: 'Refund customer overpayment to their wallet',
     label: 'ATTACK: SupportAgent exceeds its $100 cap with $200 tx'
@@ -81,16 +81,16 @@ async function runOverflow() {
 }
 
 async function runZombie() {
-  console.log('\n[TradingBot-02] Starting with NO heartbeat registered...')
-  await sendTx('TradingBot-02', {
+  console.log('\n[TradingAgent-02] Starting with NO heartbeat registered...')
+  await sendTx('TradingAgent-02', {
     to: KNOWN_ADDRESS, value: '100',
     intent: 'Transfer funds to operations wallet',
-    label: 'TradingBot-02 tx with no heartbeat — R3 should BLOCK'
+    label: 'TradingAgent-02 tx with no heartbeat — R3 should BLOCK'
   })
 }
 
 async function runDead() {
-  const agentId = 'TradingBot-01'
+  const agentId = 'TradingAgent-01'
   const hb = startHeartbeat(agentId)
   await delay(1000)
   clearInterval(hb)
@@ -111,27 +111,27 @@ async function runMultiAgent() {
   console.log('  1. PASS   2. Cap block   3. Intent block   4. Revoke')
   console.log('='.repeat(58))
 
-  // ── Agent 1: TradingBot-01 — all 5 rules pass ──────────────
-  console.log('\n[1/4] TradingBot-01 — normal $50 payment')
-  const hb1 = startHeartbeat('TradingBot-01')
+  // ── Agent 1: TradingAgent-01 — all 5 rules pass ──────────────
+  console.log('\n[1/4] TradingAgent-01 — normal $50 payment')
+  const hb1 = startHeartbeat('TradingAgent-01')
   await delay(1000) // heartbeat must land before tx
-  await sendTx('TradingBot-01', {
+  await sendTx('TradingAgent-01', {
     to: KNOWN_ADDRESS, value: '50',
     intent: 'Pay Acme Corp supplier invoice #1042 for Q1 services',
-    label: 'TradingBot-01 $50 (cap $500) — all rules PASS'
+    label: 'TradingAgent-01 $50 (cap $500) — all rules PASS'
   })
   clearInterval(hb1)
 
   await delay(2000)
 
-  // ── Agent 2: SupportBot-01 — blocked by spend cap (R2) ─────
-  console.log('\n[2/4] SupportBot-01 — $200 over $100 spend cap')
-  const hb2 = startHeartbeat('SupportBot-01')
+  // ── Agent 2: SupportAgent-01 — blocked by spend cap (R2) ─────
+  console.log('\n[2/4] SupportAgent-01 — $200 over $100 spend cap')
+  const hb2 = startHeartbeat('SupportAgent-01')
   await delay(1000)
-  await sendTx('SupportBot-01', {
+  await sendTx('SupportAgent-01', {
     to: KNOWN_ADDRESS, value: '200',
     intent: 'Refund customer overpayment to their wallet',
-    label: 'SupportBot-01 $200 (cap $100) — R2 BLOCKS'
+    label: 'SupportAgent-01 $200 (cap $100) — R2 BLOCKS'
   })
   clearInterval(hb2)
 
@@ -139,9 +139,9 @@ async function runMultiAgent() {
 
   // ── Agent 3: AttackAgent — blocked by intent mismatch (R4) ───
   console.log('\n[3/4] AttackAgent — legit intent, burn address → R4 BLOCKS')
-  const hb3 = startHeartbeat('AttackBot')
+  const hb3 = startHeartbeat('AttackAgent')
   await delay(1000)
-  await sendTx('AttackBot', {
+  await sendTx('AttackAgent', {
     to: EVIL_ADDRESS, value: '200',
     intent: 'Pay Acme Corp supplier invoice #1042 for Q1 services',
     label: 'AttackAgent — intent says supplier, tx goes to burn address'
@@ -150,13 +150,13 @@ async function runMultiAgent() {
 
   await delay(2000)
 
-  // ── Agent 4: PayrollBot-01 — heartbeat then silence → REVOKE
-  console.log('\n[4/4] PayrollBot-01 — registers heartbeat then goes silent')
-  const hb4 = startHeartbeat('PayrollBot-01')
+  // ── Agent 4: PayrollAgent-01 — heartbeat then silence → REVOKE
+  console.log('\n[4/4] PayrollAgent-01 — registers heartbeat then goes silent')
+  const hb4 = startHeartbeat('PayrollAgent-01')
   await delay(1000) // heartbeat lands
   clearInterval(hb4) // then silence
-  console.log('[PayrollBot-01] ☠  Heartbeat stopped — Dead Man\'s Switch armed')
-  console.log('[PayrollBot-01]    REVOKED + SWEPT will fire on dashboard in ~5s')
+  console.log('[PayrollAgent-01] ☠  Heartbeat stopped — Dead Man\'s Switch armed')
+  console.log('[PayrollAgent-01]    REVOKED + SWEPT will fire on dashboard in ~5s')
 }
 
 // --- CLI entry ---
