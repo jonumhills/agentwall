@@ -8,7 +8,6 @@ import { getAgentConfig, listAgents } from './registry.js'
 export function createFirewallRouter() {
   const router = Router()
 
-  // Agent calls POST /api/sign with tx + intent
   router.post('/sign', async (req, res) => {
     const { agentId, chain, to, value, data, intent } = req.body
 
@@ -17,26 +16,43 @@ export function createFirewallRouter() {
     }
 
     const signingRequest = { agentId, chain, to, value: value || '0', data: data || '0x', intent }
+    const txId = `${agentId}-${Date.now()}`
+
+    // Broadcast that evaluation is starting — dashboard shows pending card
+    broadcastEvent({
+      type: 'EVALUATING',
+      txId,
+      agentId,
+      chain,
+      to,
+      value: value || '0',
+      intent,
+      timestamp: Date.now()
+    })
 
     try {
-      const result = await runFirewall(signingRequest)
-
-      // Broadcast to dashboard
-      broadcastEvent({
-        type: result.approved ? 'APPROVED' : 'BLOCKED',
-        ...result,
-        timestamp: Date.now()
+      const result = await runFirewall(signingRequest, async (rule, ruleResult) => {
+        // Stream each rule result to dashboard as it completes
+        broadcastEvent({
+          type: 'RULE_RESULT',
+          txId,
+          rule,
+          pass: ruleResult.pass,
+          reason: ruleResult.reason
+        })
       })
 
-      // Write to on-chain audit log (include type so chain.js knows which function to call)
-      await writeAuditLog({ ...result, type: result.approved ? 'APPROVED' : 'BLOCKED' })
+      const finalType = result.approved ? 'APPROVED' : 'BLOCKED'
+
+      broadcastEvent({ type: finalType, txId, ...result, timestamp: Date.now() })
+
+      await writeAuditLog({ ...result, type: finalType })
         .catch(err => console.error('[Chain] Audit log write failed:', err))
 
       if (result.approved) {
         let txHash = '0xmock_signed_tx_hash'
         let signedTx = null
 
-        // Look up this agent's specific OWS wallet + token
         const agentCfg = getAgentConfig(agentId)
         const owsReady = agentCfg.owsToken && !agentCfg.owsToken.startsWith('ows_key_your')
 
@@ -48,8 +64,6 @@ export function createFirewallRouter() {
           } catch (owsErr) {
             console.error(`[OWS] Sign failed for ${agentId}:`, owsErr.message)
           }
-        } else if (!owsReady) {
-          console.log(`[OWS] No token configured for ${agentId} — returning mock hash`)
         }
 
         return res.json({ approved: true, txHash, signedTx, result })
@@ -62,7 +76,6 @@ export function createFirewallRouter() {
     }
   })
 
-  // List all registered agents and their config (without tokens)
   router.get('/agents', (req, res) => {
     const agents = listAgents().map(id => {
       const cfg = getAgentConfig(id)

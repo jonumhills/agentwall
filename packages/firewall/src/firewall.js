@@ -5,15 +5,14 @@ import { checkIntent } from './rules/r4-intent.js'
 import { checkAnomaly } from './rules/r5-anomaly.js'
 import { isChainAllowed } from './registry.js'
 
-// In-memory spend tracker (replace with DB for production)
 export const spendLedger = {}
 export const auditLog = []
 
-export async function runFirewall(req) {
+// onRule(ruleName, result) called after each rule completes — used for live dashboard streaming
+export async function runFirewall(req, onRule = async () => {}) {
   const { agentId, chain, to, value, intent } = req
   const results = {}
 
-  // Chain allowance check (from per-agent config)
   if (!isChainAllowed(agentId, chain)) {
     const chainBlock = { pass: false, reason: `Chain ${chain} not allowed for agent ${agentId}` }
     return {
@@ -25,12 +24,20 @@ export async function runFirewall(req) {
     }
   }
 
-  // Run all 5 rules — pass agentId so each rule reads per-agent config
   results.r1 = await checkAllowlist(agentId, to)
+  await onRule('r1', results.r1)
+
   results.r2 = await checkSpendCap(agentId, value)
+  await onRule('r2', results.r2)
+
   results.r3 = await checkLiveness(agentId)
+  await onRule('r3', results.r3)
+
   results.r4 = await checkIntent(intent, { to, value, chain })
+  await onRule('r4', results.r4)
+
   results.r5 = await checkAnomaly(agentId, { to, value, chain })
+  await onRule('r5', results.r5)
 
   const failedRules = Object.entries(results)
     .filter(([, r]) => !r.pass)
@@ -38,17 +45,7 @@ export async function runFirewall(req) {
 
   const approved = failedRules.length === 0
 
-  const event = {
-    agentId,
-    chain,
-    to,
-    value,
-    intent,
-    approved,
-    failedRules,
-    rules: results,
-    timestamp: Date.now()
-  }
+  const event = { agentId, chain, to, value, intent, approved, failedRules, rules: results, timestamp: Date.now() }
 
   auditLog.push(event)
 
